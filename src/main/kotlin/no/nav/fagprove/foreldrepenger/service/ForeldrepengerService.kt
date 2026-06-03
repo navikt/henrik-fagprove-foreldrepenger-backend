@@ -10,15 +10,12 @@ import org.springframework.stereotype.Service
 import kotlin.math.abs
 
 @Service
-class ForeldrepengerService {
-
-    companion object {
-        private const val HALV_G = 65_080
-        private const val SEKS_G = 780_960
-        private const val ENGANGSSTONAD_BELOP = 92_648
-    }
-
+class ForeldrepengerService(
+    private val navSatserService: NavSatserService,
+) {
     fun behandleSoknad(soknad: Soknad): Vedtak {
+        val satser = navSatserService.hentSatser()
+
         if (!soknad.erMedlemIFolketrygden) {
             return Vedtak(
                 soknadId = soknad.id,
@@ -30,16 +27,16 @@ class ForeldrepengerService {
         val opptjeningOppfylt = harOpptjening(soknad)
         val arsinntektFraHistorikk = beregnArsinntektFraHistorikk(soknad)
 
-        if (!opptjeningOppfylt || arsinntektFraHistorikk < HALV_G) {
+        if (!opptjeningOppfylt || arsinntektFraHistorikk < satser.halvG) {
             return Vedtak(
                 soknadId = soknad.id,
                 status = VedtakStatus.ENGANGSSTONAD,
                 begrunnelse = "Søker oppfyller ikke opptjeningskravet for foreldrepenger, men oppfyller det forenklede medlemskravet og får derfor engangsstønad.",
-                engangsstonadBelop = ENGANGSSTONAD_BELOP
+                engangsstonadBelop = satser.engangsstonad
             )
         }
 
-        val beregningsgrunnlag = beregnBeregningsgrunnlag(soknad)
+        val beregningsgrunnlag = beregnBeregningsgrunnlag(soknad, satser)
 
         if (beregningsgrunnlag.kreverManuellVurdering) {
             return Vedtak(
@@ -112,7 +109,10 @@ class ForeldrepengerService {
         return totalGodkjentInntekt * 12 / 10
     }
 
-    private fun beregnBeregningsgrunnlag(soknad: Soknad): Beregningsgrunnlag {
+    private fun beregnBeregningsgrunnlag(
+        soknad: Soknad,
+        satser: NavSatser,
+    ): Beregningsgrunnlag {
         val sisteTreMaaneder = soknad.inntektshistorikk
             .filter { erGodkjentInntektstype(it.type) }
             .takeLast(3)
@@ -131,7 +131,7 @@ class ForeldrepengerService {
             if (avvik > 0.25) {
                 return Beregningsgrunnlag(
                     arssats = arssats,
-                    begrensetTilSeksG = minOf(arssats, SEKS_G),
+                    begrensetTilSeksG = minOf(arssats, satser.seksG),
                     kreverManuellVurdering = true,
                     begrunnelse = "Søknaden krever manuell vurdering fordi det er mer enn 25 prosent avvik mellom beregnet årssats og oppgitt årsinntekt."
                 )
@@ -140,7 +140,7 @@ class ForeldrepengerService {
 
         return Beregningsgrunnlag(
             arssats = arssats,
-            begrensetTilSeksG = minOf(arssats, SEKS_G),
+            begrensetTilSeksG = minOf(arssats, satser.seksG),
             kreverManuellVurdering = false
         )
     }
