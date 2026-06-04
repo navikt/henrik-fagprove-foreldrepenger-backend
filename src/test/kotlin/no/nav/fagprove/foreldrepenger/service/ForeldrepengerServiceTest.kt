@@ -19,6 +19,9 @@ class ForeldrepengerServiceTest {
     lateinit var service: ForeldrepengerService
 
     @MockitoBean
+    lateinit var vedtakLagringService: VedtakLagringService
+
+    @MockitoBean
     lateinit var navSatserService: NavSatserService
 
     @Test

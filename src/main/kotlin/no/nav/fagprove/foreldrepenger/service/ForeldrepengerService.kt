@@ -18,15 +18,18 @@ import kotlin.math.abs
 class ForeldrepengerService(
     private val navSatserService: NavSatserService,
     private val regler: ForeldrepengerReglerProperties,
+    private val vedtakLagringService: VedtakLagringService,
 ) {
     fun behandleSoknad(soknad: Soknad): Vedtak {
         val satser = navSatserService.hentSatser()
 
         if (!soknad.erMedlemIFolketrygden) {
-            return Vedtak(
-                soknadId = soknad.id,
-                status = VedtakStatus.AVSLAG,
-                begrunnelse = "Søker oppfyller ikke det forenklede medlemskravet i folketrygden og har derfor ikke rett til foreldrepenger eller engangsstønad."
+            return lagreOgReturner(
+                Vedtak(
+                    soknadId = soknad.id,
+                    status = VedtakStatus.AVSLAG,
+                    begrunnelse = "Søker oppfyller ikke det forenklede medlemskravet i folketrygden og har derfor ikke rett til foreldrepenger eller engangsstønad."
+                )
             )
         }
 
@@ -34,37 +37,48 @@ class ForeldrepengerService(
         val arsinntektFraHistorikk = beregnArsinntektFraHistorikk(soknad)
 
         if (!opptjeningOppfylt || arsinntektFraHistorikk < satser.halvG) {
-            return Vedtak(
-                soknadId = soknad.id,
-                status = VedtakStatus.ENGANGSSTONAD,
-                begrunnelse = "Søker oppfyller ikke opptjeningskravet for foreldrepenger, men oppfyller det forenklede medlemskravet og får derfor engangsstønad.",
-                engangsstonadBelop = satser.engangsstonad
+            return lagreOgReturner(
+                Vedtak(
+                    soknadId = soknad.id,
+                    status = VedtakStatus.ENGANGSSTONAD,
+                    begrunnelse = "Søker oppfyller ikke opptjeningskravet for foreldrepenger, men oppfyller det forenklede medlemskravet og får derfor engangsstønad.",
+                    engangsstonadBelop = satser.engangsstonad
+                )
             )
         }
 
         val beregningsgrunnlag = beregnBeregningsgrunnlag(soknad, satser)
 
         if (beregningsgrunnlag.kreverManuellVurdering) {
-            return Vedtak(
-                soknadId = soknad.id,
-                status = VedtakStatus.MANUELL_VURDERING,
-                begrunnelse = beregningsgrunnlag.begrunnelse
-                    ?: "Søknaden krever manuell vurdering.",
-                beregningsgrunnlag = beregningsgrunnlag
+            return lagreOgReturner(
+                Vedtak(
+                    soknadId = soknad.id,
+                    status = VedtakStatus.MANUELL_VURDERING,
+                    begrunnelse = beregningsgrunnlag.begrunnelse
+                        ?: "Søknaden krever manuell vurdering.",
+                    beregningsgrunnlag = beregningsgrunnlag
+                )
             )
         }
 
         val totalUker = beregnTotalStonadsperiodeUker(soknad)
         val kvoter = beregnKvoter(soknad, totalUker)
 
-        return Vedtak(
-            soknadId = soknad.id,
-            status = VedtakStatus.INNVILGET,
-            begrunnelse = "Søker oppfyller vilkårene for foreldrepenger. Søknaden er innvilget med beregningsgrunnlag, stønadsperiode og kvoter.",
-            beregningsgrunnlag = beregningsgrunnlag,
-            totalStonadsperiodeUker = totalUker,
-            kvoter = kvoter
+        return lagreOgReturner(
+            Vedtak(
+                soknadId = soknad.id,
+                status = VedtakStatus.INNVILGET,
+                begrunnelse = "Søker oppfyller vilkårene for foreldrepenger. Søknaden er innvilget med beregningsgrunnlag, stønadsperiode og kvoter.",
+                beregningsgrunnlag = beregningsgrunnlag,
+                totalStonadsperiodeUker = totalUker,
+                kvoter = kvoter
+            )
         )
+    }
+
+    private fun lagreOgReturner(vedtak: Vedtak): Vedtak {
+        vedtakLagringService.lagreVedtak(vedtak)
+        return vedtak
     }
 
     fun hentTestSoknader(): List<Soknad> {
