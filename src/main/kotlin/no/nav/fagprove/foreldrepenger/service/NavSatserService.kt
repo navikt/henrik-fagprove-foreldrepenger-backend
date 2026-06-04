@@ -28,15 +28,19 @@ data class NavSatser(
     val kilde: String,
 )
 
+interface NavSatserService {
+    fun hentSatser(): NavSatser
+}
+
 @Service
-class NavSatserService(
+class NavSatserServiceImpl(
     private val regler: ForeldrepengerReglerProperties,
-) {
+) : NavSatserService {
     private val webClient = WebClient.builder()
         .baseUrl("https://g.nav.no")
         .build()
 
-    fun hentSatser(): NavSatser {
+    override fun hentSatser(): NavSatser {
         return try {
             hentSatserFraNavApi()
         } catch (e: Exception) {
