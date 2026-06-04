@@ -1,6 +1,11 @@
 package no.nav.fagprove.foreldrepenger.service
 
+import no.nav.fagprove.foreldrepenger.config.BarnUkerConfig
+import no.nav.fagprove.foreldrepenger.config.ForeldrepengerReglerProperties
+import no.nav.fagprove.foreldrepenger.config.KvoteUkerConfig
+import no.nav.fagprove.foreldrepenger.config.RettsforholdUkerConfig
 import no.nav.fagprove.foreldrepenger.domain.Beregningsgrunnlag
+import no.nav.fagprove.foreldrepenger.domain.Inntektsregistrering
 import no.nav.fagprove.foreldrepenger.domain.Inntektstype
 import no.nav.fagprove.foreldrepenger.domain.Kvoter
 import no.nav.fagprove.foreldrepenger.domain.Soknad
@@ -12,6 +17,7 @@ import kotlin.math.abs
 @Service
 class ForeldrepengerService(
     private val navSatserService: NavSatserService,
+    private val regler: ForeldrepengerReglerProperties,
 ) {
     fun behandleSoknad(soknad: Soknad): Vedtak {
         val satser = navSatserService.hentSatser()
@@ -146,38 +152,39 @@ class ForeldrepengerService(
     }
 
     private fun beregnTotalStonadsperiodeUker(soknad: Soknad): Int {
-        val barnKategori = when {
-            soknad.antallBarn <= 1 -> 1
-            soknad.antallBarn == 2 -> 2
-            else -> 3
+        val rettsforholdConfig: RettsforholdUkerConfig = when (soknad.rettsforhold) {
+            "begge" -> regler.stonadsuker.begge
+            "kun-mor" -> regler.stonadsuker.kunMor
+            "kun-far" -> regler.stonadsuker.kunFar
+            else -> throw IllegalArgumentException("Ugyldig rettsforhold: ${soknad.rettsforhold}")
         }
 
-        return when (soknad.rettsforhold) {
-            "begge" -> when (barnKategori) {
-                1 -> if (soknad.dekningsgrad == 100) 49 else 61
-                2 -> if (soknad.dekningsgrad == 100) 66 else 82
-                else -> if (soknad.dekningsgrad == 100) 95 else 118
-            }
+        val dekningsgradConfig: BarnUkerConfig = when (soknad.dekningsgrad) {
+            100 -> rettsforholdConfig.hundre
+            80 -> rettsforholdConfig.aatti
+            else -> throw IllegalArgumentException("Ugyldig dekningsgrad: ${soknad.dekningsgrad}")
+        }
 
-            "kun-mor" -> when (barnKategori) {
-                1 -> if (soknad.dekningsgrad == 100) 49 else 61
-                2 -> if (soknad.dekningsgrad == 100) 66 else 82
-                else -> if (soknad.dekningsgrad == 100) 95 else 118
-            }
-
-            "kun-far" -> when (barnKategori) {
-                1 -> if (soknad.dekningsgrad == 100) 40 else 52
-                2 -> if (soknad.dekningsgrad == 100) 57 else 73
-                else -> if (soknad.dekningsgrad == 100) 86 else 109
-            }
-
-            else -> throw IllegalArgumentException("Ugyldig rettsforhold: ${soknad.rettsforhold}")
+        return when {
+            soknad.antallBarn <= 1 -> dekningsgradConfig.ettBarn
+            soknad.antallBarn == 2 -> dekningsgradConfig.toBarn
+            else -> dekningsgradConfig.treEllerFlereBarn
         }
     }
 
     private fun beregnKvoter(soknad: Soknad, totalUker: Int): Kvoter {
-        val flerbarnsbonus = beregnFlerbarnsbonus(soknad)
-        val forhandskvoteMor = if (soknad.rettsforhold == "kun-far") 0 else 3
+        val kvoteConfig: KvoteUkerConfig = when (soknad.dekningsgrad) {
+            100 -> regler.kvoter.hundre
+            80 -> regler.kvoter.aatti
+            else -> throw IllegalArgumentException("Ugyldig dekningsgrad: ${soknad.dekningsgrad}")
+        }
+
+        val flerbarnsbonus = beregnFlerbarnsbonus(soknad, kvoteConfig)
+        val forhandskvoteMor = if (soknad.rettsforhold == "kun-far") {
+            0
+        } else {
+            kvoteConfig.forhandskvoteMor
+        }
 
         if (soknad.rettsforhold == "kun-mor") {
             return Kvoter(
@@ -199,8 +206,12 @@ class ForeldrepengerService(
             )
         }
 
-        val modrekvote = if (soknad.dekningsgrad == 100) 15 else 19
-        val fedrekvote = if (soknad.dekningsgrad == 100) 15 else 19
+        if (soknad.rettsforhold != "begge") {
+            throw IllegalArgumentException("Ugyldig rettsforhold: ${soknad.rettsforhold}")
+        }
+
+        val modrekvote = kvoteConfig.modrekvote
+        val fedrekvote = kvoteConfig.fedrekvote
         val fellesperiode = totalUker - modrekvote - fedrekvote - forhandskvoteMor - flerbarnsbonus
 
         return Kvoter(
@@ -212,19 +223,14 @@ class ForeldrepengerService(
         )
     }
 
-    private fun beregnFlerbarnsbonus(soknad: Soknad): Int {
-        if (soknad.antallBarn <= 1) return 0
-
-        return if (soknad.dekningsgrad == 100) {
-            when (soknad.antallBarn) {
-                2 -> 17
-                else -> 46
-            }
-        } else {
-            when (soknad.antallBarn) {
-                2 -> 21
-                else -> 57
-            }
+    private fun beregnFlerbarnsbonus(
+        soknad: Soknad,
+        kvoteConfig: KvoteUkerConfig,
+    ): Int {
+        return when {
+            soknad.antallBarn <= 1 -> 0
+            soknad.antallBarn == 2 -> kvoteConfig.flerbarnsbonusToBarn
+            else -> kvoteConfig.flerbarnsbonusTreEllerFlereBarn
         }
     }
 
@@ -232,7 +238,7 @@ class ForeldrepengerService(
         maned: String,
         type: Inntektstype,
         belop: Int
-    ) = no.nav.fagprove.foreldrepenger.domain.Inntektsregistrering(
+    ) = Inntektsregistrering(
         maned = maned,
         type = type,
         belop = belop

@@ -3,4 +3,55 @@ server:
 
 spring:
   application:
-    name: fagprove-template-backend
+    name: fagprove-foreldrepenger-backend
+
+foreldrepenger:
+  regler:
+    grunnbelop-fallback: 130160
+    engangsstonad-fallback: 92648
+
+    stonadsuker:
+      begge:
+        hundre:
+          ettBarn: 49
+          toBarn: 66
+          treEllerFlereBarn: 95
+        aatti:
+          ettBarn: 61
+          toBarn: 82
+          treEllerFlereBarn: 118
+
+      kunMor:
+        hundre:
+          ettBarn: 49
+          toBarn: 66
+          treEllerFlereBarn: 95
+        aatti:
+          ettBarn: 61
+          toBarn: 82
+          treEllerFlereBarn: 118
+
+      kunFar:
+        hundre:
+          ettBarn: 40
+          toBarn: 57
+          treEllerFlereBarn: 86
+        aatti:
+          ettBarn: 52
+          toBarn: 73
+          treEllerFlereBarn: 109
+
+    kvoter:
+      hundre:
+        modrekvote: 15
+        fedrekvote: 15
+        forhandskvoteMor: 3
+        flerbarnsbonusToBarn: 17
+        flerbarnsbonusTreEllerFlereBarn: 46
+
+      aatti:
+        modrekvote: 19
+        fedrekvote: 19
+        forhandskvoteMor: 3
+        flerbarnsbonusToBarn: 21
+        flerbarnsbonusTreEllerFlereBarn: 57
