@@ -23,16 +23,16 @@ spec:
         - application: fagprove-foreldrepenger-frontend
 
   liveness:
-    path: /api/hello
-    port: 8081
-    initialDelay: 20
-    timeout: 5
+    path: /actuator/health
+    initialDelay: 30
+    periodSeconds: 5
+    failureThreshold: 30
 
   readiness:
-    path: /api/hello
-    port: 8081
-    initialDelay: 20
-    timeout: 5
+    path: /actuator/health
+    initialDelay: 30
+    periodSeconds: 5
+    failureThreshold: 30
 
   resources:
     requests:
